@@ -1,0 +1,100 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "prefix": {
+            "type": "string",
+            "metadata": {
+                "description": "Prefix for all resources"
+            }
+        },
+        "tier": {
+            "type": "string",
+            "allowedValues": [
+                "Basic",
+                "Standard",
+                "Premium",
+                "PremiumV2"
+            ],
+            "defaultValue": "Standard",
+            "metadata": {
+                "description": "Underlying service type for app service plan"
+            }
+        },
+        "aspSize": {
+            "type": "string",
+            "allowedValues": [
+                "1",
+                "2",
+                "3"
+            ],
+            "defaultValue": "1",
+            "metadata": {
+                "description": "Server size per instance (small, medium, large)"
+            }
+        },
+        "aspInstances": {
+            "type": "int",
+            "minValue": 1,
+            "maxValue": 20,
+            "defaultValue": 1,
+            "metadata": {
+                "description": "Scale out value; the number of instances in the plan"
+            }
+        }
+    },
+    "variables": {
+        "appServicePlanName": "[concat(parameters('prefix'), '-asp')]",
+        "webAppName": "[concat(parameters('prefix'), '-as')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Web/serverfarms",
+            "apiVersion": "2016-09-01",
+            "name": "[variables('appServicePlanName')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "[concat(take(parameters('tier'), 1), parameters('aspSize'))]",
+                "tier": "[parameters('tier')]",
+                "size": "[concat(take(parameters('tier'), 1), parameters('aspSize'))]",
+                "family": "[take(parameters('tier'), 1)]",
+                "capacity": "[parameters('aspInstances')]"
+            },
+            "properties": {
+                "name": "[variables('appServicePlanName')]"
+            }
+        },
+        {
+            "name": "[variables('webAppName')]",
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2016-08-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+                "clientAffinityEnabled": false,
+                "siteConfig": {
+                    "alwaysOn": true
+                },
+                "httpsOnly": true
+            },
+            "resources": [],
+            "dependsOn": [
+                "[variables('appServicePlanName')]"
+            ]
+        }
+    ],
+    "outputs": {
+        "appServicePlanName": {
+            "type": "string",
+            "value": "[variables('appServicePlanName')]"
+        },
+        "appServicePlanId": {
+            "type": "string",
+            "value": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]"
+        },
+        "webAppName": {
+            "type": "string",
+            "value": "[variables('webAppName')]"
+        }
+    }
+}

@@ -22,6 +22,13 @@ variables:
 
 steps:
 
+# Copy azure files
+- task: CopyFiles@2
+  displayName: Copy Azure templates
+  inputs:
+    SourceFolder: azure
+    TargetFolder: $(build.artifactstagingdirectory)/azure
+
 # restore for database project
 - task: NuGetCommand@2
   displayName: Database NuGet restore
@@ -38,15 +45,15 @@ steps:
     configuration: $(buildConfiguration)
 
 # restore dotnet core
-- script: dotnet restore $(apiProjectFileprojectFile)
+- script: dotnet restore $(apiProjectFile)
   displayName: dotnet restore
 
 # build
-- script:  dotnet build --configuration $(buildConfiguration) $(apiProjectFileprojectFile)
+- script:  dotnet build --configuration $(buildConfiguration) $(apiProjectFile)
   displayName: dotnet build
 
 # test
-- script:  dotnet test --configuration $(buildConfiguration) --logger trx $(apiProjectFileprojectFile)
+- script:  dotnet test --configuration $(buildConfiguration) --logger trx $(apiProjectFile)
   displayName: dotnet test
 
 # publish test results
@@ -57,8 +64,9 @@ steps:
     testResultsFiles: '**/*.trx'
 
 # publish
-- script:  dotnet publish --configuration $(buildConfiguration) --output $BUILD_ARTIFACTSTAGINGDIRECTORY $(apiProjectFileprojectFile)
+- script:  dotnet publish --configuration $(buildConfiguration) --output $BUILD_ARTIFACTSTAGINGDIRECTORY $(apiProjectFile)
   displayName: dotnet publish
 
 # pubish drop (build artifact)
 - task: PublishBuildArtifacts@1
+  condition: succeededOrFailed()
