@@ -1,0 +1,53 @@
+# Builds API artifacts
+
+pool:
+  vmImage: vs2017-win2016
+  
+variables:
+  buildConfiguration: Release
+  buildPlatform: Any CPU
+  databaseSolutionFile: simple.web.app/simple.web.app/simple.web.app.csproj
+  apiProjectFile: dicci.forms.api/dicci.forms.api/dicci.forms.api.csproj
+
+steps:
+
+# restore for database project
+- task: NuGetCommand@2
+  displayName: Database NuGet restore
+  inputs:
+    restoreSolution: $(databaseSolutionFile)
+
+# build database project
+- task: VSBuild@1
+  displayName: Build database
+  inputs:
+    solution: $(databaseSolutionFile)
+    msbuildArgs: '/p:OutDir=$(build.artifactstagingdirectory)'
+    platform: $(buildPlatform)
+    configuration: $(buildConfiguration)
+
+# restore dotnet core
+- script: dotnet restore $(apiProjectFileprojectFile)
+  displayName: dotnet restore
+
+# build
+- script:  dotnet build --configuration $(buildConfiguration) $(apiProjectFileprojectFile)
+  displayName: dotnet build
+
+# test
+- script:  dotnet test --configuration $(buildConfiguration) --logger trx $(apiProjectFileprojectFile)
+  displayName: dotnet test
+
+# publish test results
+- task: PublishTestResults@2
+  condition: succeededOrFailed()
+  inputs:
+    testRunner: VSTest
+    testResultsFiles: '**/*.trx'
+
+# publish
+- script:  dotnet publish --configuration $(buildConfiguration) --output $BUILD_ARTIFACTSTAGINGDIRECTORY $(apiProjectFileprojectFile)
+  displayName: dotnet publish
+
+# pubish drop (build artifact)
+- task: PublishBuildArtifacts@1
