@@ -3,11 +3,13 @@
 trigger:
   batch: true
   branches:
-    include: master
+    include:
+      - master
 
 pr:
   branches:
-    include: master
+    include:
+      - master
 
 pool:
   vmImage: vs2017-win2016
