@@ -8,6 +8,33 @@
                 "description": "Prefix for all resources"
             }
         },
+        "sqlServerAdminUserName": {
+            "type": "string",
+            "metadata": {
+                "description": "The Azure SQL Server Administrator (SA) username"
+            }
+        },
+        "sqlServerAdminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "The Azure SQL Server Administrator (SA) password"
+            }
+        },
+        "storageAccountType": {
+            "type": "string",
+            "allowedValues": [
+                "Standard_LRS",
+                "Standard_GRS",
+                "Standard_RAGRS",
+                "Standard_ZRS",
+                "Premium_LRS",
+                "Premium_ZRS"
+            ],
+            "defaultValue": "Standard_LRS",
+            "metadata": {
+                "description": "Storage account type"
+            }
+        },
         "tier": {
             "type": "string",
             "allowedValues": [
@@ -41,13 +68,70 @@
             "metadata": {
                 "description": "Scale out value; the number of instances in the plan"
             }
+        },
+        "elasticPoolEdition": {
+            "type": "string",
+            "defaultValue": "Standard",
+            "allowedValues": [
+                "Basic",
+                "Standard",
+                "Premium",
+                "GeneralPurpose",
+                "BusinessCritical"
+            ],
+            "metadata": {
+                "description": "The edition component of the sku (defaultValues to Standard)"
+            }
+        },
+        "elasticPoolTotalDTU": {
+            "type": "int",
+            "defaultValue": 100,
+            "metadata": {
+                "description": "Total DTU assigned to elastic pool"
+            }
+        },
+        "elasticPoolMinDTU": {
+            "type": "int",
+            "defaultValue": 0,
+            "metadata": {
+                "description": "Minimum DTU for each databases (reserved)"
+            }
+        },
+        "elasticPoolStorage": {
+            "type": "int",
+            "defaultValue": 51200,
+            "metadata": {
+                "description": "Storage limit for the database elastic pool in MB"
+            }
+        },
+        "auditRetentionPeriod": {
+            "type": "int",
+            "defaultValue": 90,
+            "metadata": {
+                "description": "Number of days to keep logs"
+            }
         }
     },
     "variables": {
+        "storageAccountName": "[concat(replace(parameters('prefix'), '-', ''), 'str')]",
         "appServicePlanName": "[concat(parameters('prefix'), '-asp')]",
-        "webAppName": "[concat(parameters('prefix'), '-as')]"
+        "webAppName": "[concat(parameters('prefix'), '-as')]",
+        "sqlServerName": "[concat(parameters('prefix'), '-sql')]",
+        "elasticPoolName": "[concat(parameters('prefix'), '-epl')]",
+        "AuditPolicyName": "[concat(variables('sqlServerName'), '-ap')]"
     },
     "resources": [
+        {
+            "apiVersion": "2018-07-01",
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[variables('storageAccountName')]",
+            "location": "[resourceGroup().location]",
+            "kind": "Storage",
+            "sku": {
+                "name": "[parameters('storageAccountType')]"
+            },
+            "properties": {}
+        },
         {
             "type": "Microsoft.Web/serverfarms",
             "apiVersion": "2016-09-01",
@@ -81,9 +165,57 @@
             "dependsOn": [
                 "[variables('appServicePlanName')]"
             ]
+        },
+        {
+            "name": "[variables('sqlServerName')]",
+            "type": "Microsoft.Sql/servers",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "administratorLogin": "[parameters('sqlServerAdminUserName')]",
+                "administratorLoginPassword": "[parameters('sqlServerAdminPassword')]"
+            },
+            "resources": [
+                {
+                    "name": "[variables('AuditPolicyName')]",
+                    "type": "auditingSettings",
+                    "apiVersion": "2017-03-01-preview",
+                    "dependsOn": [
+                        "[concat('Microsoft.Sql/servers/', variables('sqlServerName'))]",
+                        "[variables('storageAccountName')]"
+                    ],
+                    "properties": {
+                        "state": "Enabled",
+                        "storageEndpoint": "[concat('https://', variables('storageAccountName'), '.blob.core.windows.net/')]",
+                        "storageAccountAccessKey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).keys[0].value]",
+                        "retentionDays": "[parameters('auditRetentionPeriod')]"
+                    }
+                },
+                {
+                    "name": "[variables('elasticPoolName')]",
+                    "type": "Microsoft.Sql/servers/elasticPools",
+                    "apiVersion": "2014-04-01",
+                    "location": "[resourceGroup().location]",
+                    "dependsOn": [
+                        "[concat('Microsoft.Sql/servers/', variables('sqlServerName'))]"
+                    ],
+                    "properties": {
+                        "edition": "[parameters('elasticPoolEdition')]",
+                        "dtu": "[parameters('elasticPoolTotalDTU')]",
+                        "databaseDtuMin": "[parameters('elasticPoolMinDTU')]",
+                        "databaseDtuMax": "[parameters('elasticPoolTotalDTU')]",
+                        "storageMB": "[parameters('elasticPoolStorage')]",
+                        "zoneRedundant": false
+                    }
+                }        
+            ]
         }
     ],
     "outputs": {
+        "storageAccountName": {
+            "type": "string",
+            "value": "[variables('storageAccountName')]"
+        },
         "appServicePlanName": {
             "type": "string",
             "value": "[variables('appServicePlanName')]"

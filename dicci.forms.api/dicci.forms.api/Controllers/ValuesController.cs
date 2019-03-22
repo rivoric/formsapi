@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using dicci.forms.api.Models;
 
 namespace dicci.forms.api.Controllers
 {
@@ -10,11 +12,26 @@ namespace dicci.forms.api.Controllers
     [ApiController]
     public class ValuesController : ControllerBase
     {
+        private readonly Context _context;
+
+        public ValuesController(Context context)
+        {
+            _context = context;
+
+            if (_context.Items.Count() == 0)
+            {
+                // Create a new TodoItem if collection is empty,
+                // which means you can't delete all Items.
+                _context.Items.Add(new ListItem { Name = "Item1" });
+                _context.SaveChanges();
+            }
+        }
+
         // GET api/values
         [HttpGet]
-        public ActionResult<IEnumerable<string>> Get()
+        public async Task<ActionResult<IEnumerable<ListItem>>> Get()
         {
-            return new string[] { "value1", "value2" };
+            return await _context.Items.ToListAsync();
         }
 
         // GET api/values/5
